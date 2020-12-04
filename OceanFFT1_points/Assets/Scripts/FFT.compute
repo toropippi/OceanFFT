@@ -1,0 +1,74 @@
+﻿#pragma kernel FFT2Dfunc256inv
+#pragma kernel DFT2Dfunc256inv
+#define PI 3.14159265358979323846264338328
+RWStructuredBuffer<float2> buffer;//xが実数、yが虚数を格納
+RWStructuredBuffer<float2> buffer_dmy;//xが実数、yが虚数を格納
+
+//256*256要素の2D IFFT専用かつ負の周波数もあることも考慮しているコード(普通のFFT,DFTは正の周波数からはじまる)
+//グループ数Nで実行されること前提
+//2回実行されること前提
+#define M (8)
+#define N (1<<M)
+groupshared float2 block[N];
+[numthreads(N/2, 1, 1)]
+void FFT2Dfunc256inv(uint id : SV_DispatchThreadID, uint grid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+	block[gi * 2] = buffer[grid * N + gi * 2];
+	block[gi * 2 + 1] = buffer[grid * N + gi * 2 + 1];
+
+	for (int loopidx = 0; loopidx < M; loopidx++)
+	{
+		int dleng = 1 << (M - loopidx - 1);
+		uint t = gi % dleng;
+		uint t0 = (gi / dleng) * dleng * 2 + t;
+		uint t1 = t0 + dleng;
+		GroupMemoryBarrierWithGroupSync();
+		float r1 = block[t1].x;
+		float i1 = block[t1].y;
+		float r0 = block[t0].x - r1;
+		float i0 = block[t0].y - i1;
+		float rad = PI * t / dleng;//invなので-がかかっている
+		float fsin = sin(rad);
+		float fcos = cos(rad);
+		block[t0].x += r1;
+		block[t0].y += i1;
+		block[t1].x = r0 * fcos - i0 * fsin;
+		block[t1].y = r0 * fsin + i0 * fcos;
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+	float2 reim0 = block[reversebits(gi * 2) >> (32 - M)];//32はuint=32bitの32
+	float2 reim1 = block[reversebits(gi * 2 + 1) >> (32 - M)];
+	reim1 = -reim1;//出力結果に(-1)^indexが乗算されるので
+	//書き込みはx,yを転置している。これによって2D FFTの計算の1回目と2回目を同じコードにできて、かつ、最終的なメモリ配置は最初と同じに戻る
+	//最終的な書き込み先をN/2,N/2ずらすのも忘れずに
+	buffer_dmy[(gi * 2 + N / 2) % N * N + grid] = reim0;
+	buffer_dmy[(gi * 2 + 1 + N / 2) % N * N + grid] = reim1;
+}
+
+
+//DFTで愚直に書いたバージョン
+//デバッグ用、理解を深める用
+//グループ数Nで実行されること前提
+[numthreads(N, 1, 1)]
+void DFT2Dfunc256inv(uint id : SV_DispatchThreadID, uint grid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+	int x = gi - N / 2;
+	int z = grid - N / 2;
+
+	float2 dftsum = 0;
+	for (int j = 0; j < N; j++)
+	{
+		int kz = -N / 2 + j;//* (2.0f * PI / N);
+		for (int i = 0; i < N; i++)
+		{
+			int kx = -N / 2 + i;// *(2.0f * PI / N);
+			float rad = ((kx * x + kz * z) % N) * (2.0f * PI / N);
+			float2 h = buffer[j * N + i];
+			dftsum.x += h.x * cos(rad) - h.y * sin(rad);
+			dftsum.y += h.y * cos(rad) + h.x * sin(rad);
+		}
+	}
+
+	buffer_dmy[id] = dftsum;
+}

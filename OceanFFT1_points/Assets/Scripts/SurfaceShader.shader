@@ -1,7 +1,5 @@
 ﻿Shader "Custom/SurfaceShader" {
 	SubShader{
-		//ZWrite Off
-		//Blend One One//加算合成
 
 		Pass {
 			CGPROGRAM
@@ -12,14 +10,17 @@
 			#include "UnityCG.cginc"
 
 	StructuredBuffer<float2> d_ht;
-	
+	uint N;
+	float halfN;
+	float dx;
+	float dz;
+
 	float4 ui_calcPos(uint ui_idx)
 	{
-		uint x = ui_idx % 256;
-		uint z = ui_idx / 256;
+		uint x = ui_idx % N;
+		uint z = ui_idx / N;
 		float2 h = d_ht[ui_idx];
-		if ((x + z) % 2) h.x = -h.x;
-		return float4(0.25 * x - 32.0, 8.0 * h.x, 0.25 * z - 32.0, 1);
+		return float4((1.0 * x - halfN) * dx, h.x, (1.0 * z - halfN) * dz, 1);
 	}
 
 	struct VSOut {
@@ -38,7 +39,7 @@
 	// ピクセルシェーダー
 	fixed4 frag(VSOut i) : COLOR
 	{
-		return float4(1,1,1,1);
+		return float4(0,1,1,1);
 	}
 	ENDCG
  }

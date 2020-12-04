@@ -3,11 +3,10 @@
 
 RWStructuredBuffer<float2> h0;
 RWStructuredBuffer<float2> ht;
-uint in_width;
-uint out_width;
-uint out_height;
+int N;
+int seasizeLx;
+int seasizeLz;
 float t;
-float patchSize;
 
 float2 conjugate(float2 arg)
 {
@@ -37,18 +36,18 @@ void GenerateSpectrumKernel(uint2 id : SV_DispatchThreadID)
 {
 	uint x = id.x;
 	uint y = id.y;
-	uint in_index = y * in_width + x;
-	uint in_mindex = (out_height - y) * in_width + (out_width - x); // mirrored
-	uint out_index = y * out_width + x;
+	uint in_index = y * N + x;
+	uint in_mindex = (N - y) % N * N + (N - x) % N; // mirrored
+	uint out_index = y * N + x;
 	// calculate wave vector
 	float2 k;
-	k.x = (-(int)out_width / 2.0f + x) * (2.0f * PI / patchSize);
-	k.y = (-(int)out_width / 2.0f + y) * (2.0f * PI / patchSize);
+	k.x = (-(int)N / 2.0f + x) * (2.0f * PI / seasizeLx);
+	k.y = (-(int)N / 2.0f + y) * (2.0f * PI / seasizeLz);
 	// calculate dispersion w(k)
 	float k_len = sqrt(k.x * k.x + k.y * k.y);
 	float w = sqrt(9.81f * k_len);
 
-	if ((x < out_width) && (y < out_height))
+	if ((x < (uint)N) && (y < (uint)N))
 	{
 		float2 h0_k = h0[in_index];
 		float2 h0_mk = h0[in_mindex];
