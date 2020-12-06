@@ -1,0 +1,21 @@
+﻿#pragma kernel Center_difference
+RWTexture2D<float4> tex;
+RWStructuredBuffer<float2> ht;
+uint N;
+float rdx;//dx,dz刻み幅の逆数
+float rdz;
+
+[numthreads(256, 1, 1)]
+void Center_difference(uint2 id : SV_DispatchThreadID)
+{
+    uint x0 = (id.x - 1 + N) % N;
+    uint x1 = (id.x + 1) % N;
+    uint y0 = (id.y - 1 + N) % N;
+    uint y1 = (id.y + 1) % N;
+    float subx = 0.5f * (ht[x1 + id.y * N].x - ht[x0 + id.y * N].x) * rdx;
+    float subz = 0.5f * (ht[id.x + y1 * N].x - ht[id.x + y0 * N].x) * rdz;
+    float3 vec = normalize(float3(-subx, 1.0, -subz));
+    float4 out4 = 1;
+    out4.xyz = vec;
+    tex[id] = out4;
+}

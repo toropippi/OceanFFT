@@ -1,0 +1,57 @@
+﻿#pragma kernel GenerateSpectrumKernel
+#define PI 3.14159265358979323846264338328
+
+RWStructuredBuffer<float2> h0;
+RWStructuredBuffer<float2> ht;
+int N;
+int seasizeLx;
+int seasizeLz;
+float t;
+
+float2 conjugate(float2 arg)
+{
+	float2 f2;
+	f2.x = arg.x;
+	f2.y = -arg.y;
+	return (float2)f2;
+}
+
+float2 complex_exp(float arg)
+{
+	return (float2)(cos(arg), sin(arg));
+}
+
+float2 complex_add(float2 a, float2 b)
+{
+	return (float2)(a.x + b.x, a.y + b.y);
+}
+
+float2 complex_mult(float2 ab, float2 cd)
+{
+	return (float2)(ab.x * cd.x - ab.y * cd.y, ab.x * cd.y + ab.y * cd.x);
+}
+
+[numthreads(256, 1, 1)]
+void GenerateSpectrumKernel(uint2 id : SV_DispatchThreadID)
+{
+	uint x = id.x;
+	uint y = id.y;
+	uint in_index = y * N + x;
+	uint in_mindex = (N - y) % N * N + (N - x) % N; // mirrored
+	uint out_index = y * N + x;
+	// calculate wave vector
+	float2 k;
+	k.x = (-(int)N / 2.0f + x) * (2.0f * PI / seasizeLx);
+	k.y = (-(int)N / 2.0f + y) * (2.0f * PI / seasizeLz);
+	// calculate dispersion w(k)
+	float k_len = sqrt(k.x * k.x + k.y * k.y);
+	float w = sqrt(9.81f * k_len);
+
+	if ((x < (uint)N) && (y < (uint)N))
+	{
+		float2 h0_k = h0[in_index];
+		float2 h0_mk = h0[in_mindex];
+		// output frequency-space complex values
+		ht[out_index] = complex_add(complex_mult(h0_k, complex_exp(w * t)), complex_mult(conjugate(h0_mk), complex_exp(-w * t)));
+	}
+}
