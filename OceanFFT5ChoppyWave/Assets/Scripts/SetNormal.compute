@@ -1,0 +1,16 @@
+﻿#pragma kernel SetNormal
+RWTexture2D<float4> tex;
+RWStructuredBuffer<float2> ht_dx;
+RWStructuredBuffer<float2> ht_dz;
+uint N;
+
+[numthreads(256, 1, 1)]
+void SetNormal(uint2 id : SV_DispatchThreadID)
+{
+    float subx = ht_dx[id.x + id.y * N].x;
+    float subz = ht_dz[id.x + id.y * N].x;
+    float3 vec = normalize(float3(-subx, 1.0, -subz));
+    float4 out4 = 1;
+    out4.xyz = vec;
+    tex[id] = out4;
+}
