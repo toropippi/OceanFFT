@@ -59,10 +59,10 @@ void DFT2Dfunc256inv(uint id : SV_DispatchThreadID, uint grid : SV_GroupID, uint
 	float2 dftsum = 0;
 	for (int j = 0; j < N; j++)
 	{
-		int kz = -N / 2 + j;//* (2.0f * PI / N);
+		int kz = -N / 2 + j;
 		for (int i = 0; i < N; i++)
 		{
-			int kx = -N / 2 + i;// *(2.0f * PI / N);
+			int kx = -N / 2 + i;
 			float rad = ((kx * x + kz * z) % N) * (2.0f * PI / N);
 			float2 h = buffer[j * N + i];
 			dftsum.x += h.x * cos(rad) - h.y * sin(rad);
