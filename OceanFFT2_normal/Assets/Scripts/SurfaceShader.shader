@@ -43,9 +43,8 @@
 		output.pos.xz = float2((sqx - halfN) * dx, (sqz - halfN) * dz);//4角形
 		output.pos.w = 1;
 		output.pos = mul(UNITY_MATRIX_VP, output.pos);
-
-		float rN1 = 1.0 / (N - 1);
-		output.uv = float2(sqx, sqz) * rN1;
+		float rN1 = 1.0 / N;
+		output.uv = float2(sqx, sqz) * rN1 + float2(0.5, 0.5) * rN1;
 		return output;
 	}
 
