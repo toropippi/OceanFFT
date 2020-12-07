@@ -10,9 +10,10 @@ public class FFTOceanMain : MonoBehaviour
     [SerializeField] Phillips phillips;
     int kernel_GenerateSpectrumKernel, kernel_SetNormal;
     Vector2[] h_h0;
-    public ComputeBuffer d_h0, d_ht, d_ht_dx, d_ht_dz, d_ht_dmy;
+    public ComputeBuffer d_h0, d_ht, d_ht_dx, d_ht_dz, d_ht_dmy, d_displaceX, d_displaceZ;//dmyは一時計算用
     RenderTexture normal_Tex;
     int cnt;
+    [SerializeField] float lambda = -2.0f;
 
     private void Awake()
     {
@@ -30,6 +31,8 @@ public class FFTOceanMain : MonoBehaviour
         d_ht = new ComputeBuffer((int)(Phillips.meshSize * Phillips.meshSize), sizeof(float) * 2);//GPU側メモリ確保 サイズはsizeof(Vector2)*256*256
         d_ht_dx = new ComputeBuffer((int)(Phillips.meshSize * Phillips.meshSize), sizeof(float) * 2);//x偏微分用
         d_ht_dz = new ComputeBuffer((int)(Phillips.meshSize * Phillips.meshSize), sizeof(float) * 2);//z偏微分用
+        d_displaceX = new ComputeBuffer((int)(Phillips.meshSize * Phillips.meshSize), sizeof(float) * 2);//ディスプレスX choppy wave用
+        d_displaceZ = new ComputeBuffer((int)(Phillips.meshSize * Phillips.meshSize), sizeof(float) * 2);//ディスプレスZ choppy wave用
         d_ht_dmy = new ComputeBuffer(d_ht.count, sizeof(float) * 2);
         d_h0.SetData(h_h0);
         SetArgs();
@@ -54,21 +57,31 @@ public class FFTOceanMain : MonoBehaviour
         shaderGenerateSpectrum.SetBuffer(kernel_GenerateSpectrumKernel, "ht", d_ht);
         shaderGenerateSpectrum.SetBuffer(kernel_GenerateSpectrumKernel, "ht_dx", d_ht_dx);
         shaderGenerateSpectrum.SetBuffer(kernel_GenerateSpectrumKernel, "ht_dz", d_ht_dz);
+        shaderGenerateSpectrum.SetBuffer(kernel_GenerateSpectrumKernel, "displaceX", d_displaceX);
+        shaderGenerateSpectrum.SetBuffer(kernel_GenerateSpectrumKernel, "displaceZ", d_displaceZ);
         shaderGenerateSpectrum.SetInt("N", (int)Phillips.meshSize);
         shaderGenerateSpectrum.SetInt("seasizeLx", (int)Phillips.seasizeLx);
         shaderGenerateSpectrum.SetInt("seasizeLz", (int)Phillips.seasizeLz);
         shaderSetNormal.SetBuffer(kernel_SetNormal, "ht_dx", d_ht_dx);
         shaderSetNormal.SetBuffer(kernel_SetNormal, "ht_dz", d_ht_dz);
+        shaderSetNormal.SetBuffer(kernel_GenerateSpectrumKernel, "displaceX", d_displaceX);
+        shaderSetNormal.SetBuffer(kernel_GenerateSpectrumKernel, "displaceZ", d_displaceZ);
         shaderSetNormal.SetTexture(kernel_SetNormal, "tex", normal_Tex);
+        shaderSetNormal.SetFloat("dx", 1.0f * Phillips.seasizeLx / Phillips.meshSize);
+        shaderSetNormal.SetFloat("dz", 1.0f * Phillips.seasizeLz / Phillips.meshSize);
+        shaderSetNormal.SetFloat("lambda", lambda);
         shaderSetNormal.SetInt("N", (int)Phillips.meshSize);
         // GPUバッファをマテリアルに設定
         renderingShader_Material.SetBuffer("d_ht", d_ht);
         renderingShader_Material.SetTexture("_MainTex", normal_Tex);
+        renderingShader_Material.SetBuffer("d_displaceX", d_displaceX);
+        renderingShader_Material.SetBuffer("d_displaceZ", d_displaceZ);
         // その他Shader 定数関連
         renderingShader_Material.SetInt("N", (int)Phillips.meshSize);
         renderingShader_Material.SetFloat("halfN", 0.5f * Phillips.meshSize);
         renderingShader_Material.SetFloat("dx", 1.0f * Phillips.seasizeLx / Phillips.meshSize);
         renderingShader_Material.SetFloat("dz", 1.0f * Phillips.seasizeLz / Phillips.meshSize);
+        renderingShader_Material.SetFloat("lambda", lambda);
     }
 
 
@@ -77,6 +90,7 @@ public class FFTOceanMain : MonoBehaviour
         Calc_Spectrum();
         CalcFFT_ht();
         CalcFFT_ht_dxz();
+        CalcFFT_displaceXZ();
         SetNormal();
         cnt++;
         //このあとレンダリング
@@ -99,6 +113,12 @@ public class FFTOceanMain : MonoBehaviour
         fFT.FFT2D_256_Dispatch(d_ht_dx, d_ht_dmy);//d_ht_dxから高さデータを計算、d_ht_dxに結果が入る
         fFT.FFT2D_256_Dispatch(d_ht_dz, d_ht_dmy);//d_ht_dzから高さデータを計算、d_ht_dzに結果が入る
     }
+    void CalcFFT_displaceXZ()
+    {
+        fFT.FFT2D_256_Dispatch(d_displaceX, d_ht_dmy);//
+        fFT.FFT2D_256_Dispatch(d_displaceZ, d_ht_dmy);//
+    }
+
     void SetNormal()
     {
         shaderSetNormal.Dispatch(kernel_SetNormal, 1, 256, 1);//偏微分bufferから値を抽出し法線ベクトルを計算してtextureに保存
@@ -109,6 +129,7 @@ public class FFTOceanMain : MonoBehaviour
         // レンダリングを開始
         renderingShader_Material.SetPass(0);
         Graphics.DrawProceduralNow(MeshTopology.Quads, (int)(Phillips.meshSize * Phillips.meshSize) * 4);
+        //Graphics.DrawProceduralNow(MeshTopology.Lines, (int)(Phillips.meshSize * Phillips.meshSize)*4);
     }
 
     private void OnDestroy()
@@ -119,6 +140,8 @@ public class FFTOceanMain : MonoBehaviour
         d_ht_dx.Release();
         d_ht_dz.Release();
         d_ht_dmy.Release();
+        d_displaceX.Release();
+        d_displaceZ.Release();
     }
 
 }

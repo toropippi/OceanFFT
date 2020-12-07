@@ -6,7 +6,7 @@ public class Phillips : MonoBehaviour
     public const uint seasizeLx = meshSize * 5 / 2;
     public const uint seasizeLz = meshSize * 5 / 2;
     const float G = 9.81f;              // gravitational constant
-    const float A = 0.00000011f;              // wave scale factor  A - constant
+    const float A = 0.00000121f;              // wave scale factor  A - constant
     const float windSpeed = 30.0f;
     const float windDir = Mathf.PI * 1.234f; //wind angle in radians
 

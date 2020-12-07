@@ -2,13 +2,26 @@
 RWTexture2D<float4> tex;
 RWStructuredBuffer<float2> ht_dx;
 RWStructuredBuffer<float2> ht_dz;
+RWStructuredBuffer<float2> displaceX;
+RWStructuredBuffer<float2> displaceZ;
 uint N;
+float dx;
+float dz;
 
+float lambda;
 [numthreads(256, 1, 1)]
 void SetNormal(uint2 id : SV_DispatchThreadID)
 {
+    uint x0 = (id.x - 1 + N) % N;
+    uint x1 = (id.x + 1) % N;
+    uint y0 = (id.y - 1 + N) % N;
+    uint y1 = (id.y + 1) % N;
+
     float subx = ht_dx[id.x + id.y * N].x;
     float subz = ht_dz[id.x + id.y * N].x;
+    //displaceXZだけ定義点が移動することを考えここで傾きをさらにいじる
+    subx *= 2.0 * dx / ((displaceX[x1 + id.y * N].x - displaceX[x0 + id.y * N].x) * lambda + 2.0 * dx);
+    subz *= 2.0 * dz / ((displaceZ[id.x + y1 * N].x - displaceZ[id.x + y0 * N].x) * lambda + 2.0 * dz);
     float3 vec = normalize(float3(-subx, 1.0, -subz));
     float4 out4 = 1;
     out4.xyz = vec;
