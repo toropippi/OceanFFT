@@ -1,0 +1,42 @@
+﻿#pragma kernel SetNormalBubble
+RWTexture2D<float4> normalTex;
+RWTexture2D<float> bubbleTex;
+RWStructuredBuffer<float2> ht_dx;
+RWStructuredBuffer<float2> ht_dz;
+RWStructuredBuffer<float2> displaceX;
+RWStructuredBuffer<float2> displaceZ;
+uint N;
+float dx;
+float dz;
+
+float lambda;
+[numthreads(256, 1, 1)]
+void SetNormalBubble(uint2 id : SV_DispatchThreadID)
+{
+    uint x0 = (id.x - 1 + N) % N;
+    uint x1 = (id.x + 1) % N;
+    uint y0 = (id.y - 1 + N) % N;
+    uint y1 = (id.y + 1) % N;
+    float dDxdx = 0.5 * (displaceX[x1 + id.y * N].x - displaceX[x0 + id.y * N].x);//中心差分
+    float dDzdz = 0.5 * (displaceZ[id.x + y1 * N].x - displaceZ[id.x + y0 * N].x);//中心差分
+    float dDxdz = 0.5 * (displaceX[id.x + y1 * N].x - displaceX[id.x + y0 * N].x);//中心差分
+    float dDzdx = 0.5 * (displaceZ[x1 + id.y * N].x - displaceZ[x0 + id.y * N].x);//中心差分
+
+    float gradx = ht_dx[id.x + id.y * N].x;
+    float gradz = ht_dz[id.x + id.y * N].x;
+    //displaceXZだけ定義点が移動することを考えここで傾きをさらにいじる
+    gradx *= dx / (dDxdx * lambda + dx);
+    gradz *= dz / (dDzdz * lambda + dz);
+    float3 vec = normalize(float3(-gradx, 1.0, -gradz));
+    float4 out4 = 1;
+    out4.xyz = vec;
+    normalTex[id] = out4;
+
+    //Jの計算
+    float Jxx = 1.0 + dDxdx * lambda;
+    float Jzz = 1.0 + dDzdz * lambda;
+    float Jxz = dDxdz * lambda;
+    float Jzx = dDzdx * lambda;
+    float J = Jxx * Jzz - Jxz * Jzx;//J<0なら面が裏返しになってる
+    bubbleTex[id] = J;
+}
